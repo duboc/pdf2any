@@ -26,54 +26,50 @@ Built with FastAPI for the backend and a simple HTML/JS frontend, PDF2Any stream
 ## Architecture
 
 ```mermaid
-flowchart LR
-    subgraph UserBrowser
-        Frontend[Web UI HTML/JS/CSS]
+sequenceDiagram
+    actor User
+    participant Frontend as Web UI
+    participant API as Backend API
+    participant UploadHandler as Upload Handler
+    participant WorkflowManager as Workflow Manager
+    participant GCS as Google Cloud Storage
+    participant OSS_Extractor as OCR Module
+    participant GeminiClient as Gemini Client
+    participant VertexAI as Vertex AI
+    participant Reconciler as Reconciliation Logic
+    participant ExcelGen as Excel Generator
+    
+    User->>Frontend: Upload PDF
+    Frontend->>API: Send PDF file
+    API->>UploadHandler: Process upload
+    UploadHandler->>GCS: Store PDF
+    UploadHandler->>WorkflowManager: Trigger extraction
+    
+    par Parallel Extraction
+        WorkflowManager->>OSS_Extractor: Start OCR extraction
+        OSS_Extractor->>GCS: Read PDF
+        OSS_Extractor->>WorkflowManager: Return raw text
+        
+        and AI Extraction
+        WorkflowManager->>GeminiClient: Start AI extraction
+        GeminiClient->>GCS: Read PDF
+        GeminiClient->>VertexAI: Request structured extraction
+        VertexAI->>GeminiClient: Return extraction result (JSON)
+        GeminiClient->>WorkflowManager: Return structured JSON
     end
-
-    subgraph BackendServer[Backend Server Python/FastAPI]
-        API[API Endpoints]
-        UploadHandler[Upload Handler]
-        WorkflowManager[Workflow Manager]
-        OSS_Extractor[OSS OCR Module Tesseract]
-        GeminiClient[Gemini Client]
-        Reconciler[Reconciliation Logic]
-        ExcelGen[Excel Generator]
-        EnvConfig[Config Loader]
-    end
-
-    subgraph GCP[Google Cloud Platform]
-        GCS[GCS Bucket]
-        VertexAI[Vertex AI Gemini API]
-    end
-
-    User[User] --> Frontend
-    Frontend -- Upload PDF --> API
-    API --> UploadHandler
-    UploadHandler -- Save PDF --> GCS
-    UploadHandler -- Trigger --> WorkflowManager
-
-    WorkflowManager -- Start OSS --> OSS_Extractor
-    WorkflowManager -- Start Gemini Extraction --> GeminiClient
-    GeminiClient -- Reads PDF --> GCS
-    GeminiClient -- Calls --> VertexAI
-
-    OSS_Extractor -- Raw Text --> WorkflowManager
-    VertexAI -- Extraction Result --> GeminiClient
-    GeminiClient -- Structured JSON --> WorkflowManager
-
-    WorkflowManager -- Start Reconciliation --> Reconciler
-    Reconciler -- Calls --> VertexAI
-    VertexAI -- Reconciled Result --> Reconciler
-    Reconciler -- Result --> WorkflowManager
-
-    WorkflowManager -- Generate Report --> ExcelGen
-    ExcelGen -- Report --> WorkflowManager
-    WorkflowManager -- Send Report URL/Data --> API
-    API -- Download Link/File --> Frontend
-    Frontend -- Display/Download --> User
-
-    EnvConfig -- Loads Config --> BackendServer
+    
+    WorkflowManager->>Reconciler: Start reconciliation
+    Reconciler->>VertexAI: Request result validation
+    VertexAI->>Reconciler: Return reconciled result
+    Reconciler->>WorkflowManager: Return final data
+    
+    WorkflowManager->>ExcelGen: Generate Excel report
+    ExcelGen->>WorkflowManager: Return report
+    WorkflowManager->>API: Send report URL/data
+    API->>Frontend: Return download link
+    Frontend->>User: Display download button
+    User->>Frontend: Request download
+    Frontend->>User: Download Excel file
 ```
 
 ## Prerequisites
